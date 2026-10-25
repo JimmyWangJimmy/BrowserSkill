@@ -174,9 +174,9 @@ export async function handleWheel(
             break;
           }
         }
+        checkActive();
+        const [stepX, stepY] = schedule[index];
         try {
-          checkActive();
-          const [stepX, stepY] = schedule[index];
           await deps.cdp.send(target.tabId, "Input.dispatchMouseEvent", {
             type: "mouseWheel",
             x: point.x,
@@ -185,12 +185,6 @@ export async function handleWheel(
             deltaY: stepY,
             modifiers,
           });
-          dispatched += 1;
-          totalX += stepX;
-          totalY += stepY;
-          // Wheel acknowledgement precedes compositor scrolling. Keep the hidden renderer
-          // awake until its resulting frame is available, then restore focus.
-          if (input.hidden) await waitForInputPaint(cdp, target.tabId, deps.signal, deadline);
         } catch (error) {
           // Nothing reached the page yet: report the underlying cause instead of a
           // partial success that claims zero events.
@@ -202,6 +196,14 @@ export async function handleWheel(
               : "error";
           break;
         }
+        dispatched += 1;
+        totalX += stepX;
+        totalY += stepY;
+        // Wheel acknowledgement precedes compositor scrolling. Keep the hidden renderer
+        // awake until its resulting frame is available, then restore focus. A paint that
+        // cannot be confirmed propagates: the event was sent, so its outcome is unknown
+        // and the operation must not continue as if it were complete.
+        if (input.hidden) await waitForInputPaint(cdp, target.tabId, deps.signal, deadline);
       }
       checkActive();
       return attachDialogs(deps.cdp, target.tabId, dialogCursor, {
