@@ -37,13 +37,13 @@ user tabs must first be borrowed into that window. `--timeout` defaults to
 
 ## Bursts
 
-`--repeat` dispatches several wheel events from one invocation over a single
-daemon connection, so the per-event cost is the round trip instead of a process
-start. `--repeat` takes 1–200; `--interval-ms` (default `16`, range 0–5000)
-spaces the events and is ignored when no burst runs (`--repeat 1`).
+`--repeat` asks the browser to perform a whole gesture inside **one operation**:
+one cooperation context, one input lease and one deadline cover every event, and
+the extension paces the dispatches itself. `--repeat` takes 1–200; `--interval-ms`
+(default `16`, range 0–5000) is the pause measured from the previous dispatch.
 
 With `--repeat` above 1, `--delta-x`/`--delta-y` are the **total** delta for the
-burst and are split across its events, so `--delta-y 900 --repeat 15` scrolls
+operation and are split across its events, so `--delta-y 900 --repeat 15` scrolls
 about 900 CSS pixels rather than 15 × 900. `--ease ease-out` front-loads the
 profile and decays the tail (a flick that settles); `--ease linear` splits the
 total evenly.
@@ -53,11 +53,17 @@ bsk wheel --session abcd --delta-y 900 --repeat 15 --interval-ms 16 --ease ease-
 bsk wheel --session abcd --delta-y -600 --repeat 9 --ease linear --json
 ```
 
-A single-event burst keeps the exact requested delta and the existing result
-shape. A multi-event burst reports `events`, `interval_ms`, `total_delta_x`,
-`total_delta_y` and the last event's result, so a caller can assert the schedule
-without re-reading the page. If an event fails mid-burst the command stops,
-prints how many events were dispatched, and returns the underlying error.
+`--timeout` bounds the **entire operation**, including the inter-event waits, so
+`--repeat 200 --interval-ms 5000` stops at the deadline instead of running for
+sixteen minutes.
+
+A single-event operation keeps the exact requested delta and the existing result
+shape. Any operation reports `events` (dispatched), `total_delta_x`,
+`total_delta_y` and, when it stopped early, `stopped` with `timeout`, `cancelled`
+or `error`. A partial gesture is therefore a successful result that carries its
+progress rather than a failure with no record: `events` is below the request and
+`total_delta_*` holds what actually reached the page. An operation that dispatches
+no event at all returns the underlying error, because nothing reached the page.
 
 ## Input and result contract
 
