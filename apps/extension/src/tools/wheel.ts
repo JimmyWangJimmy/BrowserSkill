@@ -174,9 +174,9 @@ export async function handleWheel(
             break;
           }
         }
-        checkActive();
         const [stepX, stepY] = schedule[index];
         try {
+          checkActive();
           await deps.cdp.send(target.tabId, "Input.dispatchMouseEvent", {
             type: "mouseWheel",
             x: point.x,
@@ -205,7 +205,9 @@ export async function handleWheel(
         // and the operation must not continue as if it were complete.
         if (input.hidden) await waitForInputPaint(cdp, target.tabId, deps.signal, deadline);
       }
-      checkActive();
+      // A stopped operation reports its progress instead of a late abort error;
+      // only a fully dispatched operation re-checks cancellation here.
+      if (stopped === undefined) checkActive();
       return attachDialogs(deps.cdp, target.tabId, dialogCursor, {
         tab_id: target.tabId,
         used_ref: point.usedRef,
