@@ -124,8 +124,13 @@ pub fn dispatch(args: WheelArgs, format: Format) -> Result<(), CliError> {
                 );
             } else {
                 let state = reply.stopped.as_deref().unwrap_or("complete");
+                let cause = reply
+                    .stop_error
+                    .as_ref()
+                    .map(|error| format!(" error={}", error.code))
+                    .unwrap_or_default();
                 println!(
-                    "wheel burst events={} state={state} total=({}, {}) tab={} target={target}",
+                    "wheel burst events={} state={state} total=({}, {}){cause} tab={} target={target}",
                     reply.events, reply.total_delta_x, reply.total_delta_y, reply.tab_id
                 );
             }

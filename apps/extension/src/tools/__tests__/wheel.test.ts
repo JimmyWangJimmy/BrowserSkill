@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CdpFrameGraph, CdpTarget } from "@/browser-driver/frame-graph";
 import { SessionManager } from "@/session-manager/manager";
 import type { JavaScriptDialogInfo, WheelParams } from "@/transport/types";
@@ -618,5 +618,23 @@ describe("handleWheel bursts", () => {
       expect(await f.run(params as never)).toMatchObject({ code: "invalid_params" });
       expect(wheels(f)).toHaveLength(0);
     }
+  });
+  it("keeps progress and the failing cause when a later event fails", async () => {
+    const f = await fixture();
+    let seen = 0;
+    f.hooks.reply = (call) => {
+      if (call.params?.type === "mouseWheel" && ++seen === 2) throw new Error("injected failure");
+      return undefined;
+    };
+
+    const result = await f.run({ delta_y: 900, events: 4, interval_ms: 0 });
+
+    expect(wheels(f)).toHaveLength(2);
+    expect(result).toMatchObject({
+      events: 1,
+      stopped: "error",
+      total_delta_y: 225,
+      stop_error: { code: "cdp_failed" },
+    });
   });
 });

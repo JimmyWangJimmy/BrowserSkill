@@ -20,6 +20,17 @@ fn single_event() -> u32 {
     1
 }
 
+/// The underlying failure of an operation that stopped with `stopped: "error"`.
+///
+/// Kept separate from `stopped` so a caller reads partial progress and the cause
+/// together, without mistaking the last event's error for the outcome of the
+/// whole operation and replaying input that already reached the page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct WheelStopError {
+    pub code: String,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct WheelParams {
     pub session_id: String,
@@ -91,6 +102,10 @@ pub struct WheelResult {
     /// Absent when every requested event was dispatched.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<String>,
+    /// The underlying failure when `stopped` is `error`, kept out of `stopped` so
+    /// partial progress and its cause stay distinguishable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stop_error: Option<WheelStopError>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dialogs: Vec<JavaScriptDialogInfo>,
 }
@@ -180,6 +195,7 @@ mod tests {
             total_delta_x: 0.0,
             total_delta_y: 240.0,
             stopped: Some("timeout".into()),
+            stop_error: None,
             dialogs: Vec::new(),
         };
         let value = serde_json::to_value(&result).unwrap();
@@ -188,6 +204,7 @@ mod tests {
             value.get("stopped").and_then(|v| v.as_str()),
             Some("timeout")
         );
+        assert!(value.get("stop_error").is_none());
 
         let complete = WheelResult {
             stopped: None,
@@ -195,5 +212,36 @@ mod tests {
         };
         let value = serde_json::to_value(&complete).unwrap();
         assert!(value.get("stopped").is_none());
+    }
+
+    #[test]
+    fn result_keeps_progress_and_cause_separate_on_a_stopped_error() {
+        let result = WheelResult {
+            tab_id: 7,
+            used_ref: None,
+            used_selector: None,
+            x: 1.0,
+            y: 2.0,
+            delta_x: 0.0,
+            delta_y: 900.0,
+            events: 2,
+            total_delta_x: 0.0,
+            total_delta_y: 360.0,
+            stopped: Some("error".into()),
+            stop_error: Some(WheelStopError {
+                code: "cdp_failed".into(),
+                message: "Input.dispatchMouseEvent failed".into(),
+            }),
+            dialogs: Vec::new(),
+        };
+        let value = serde_json::to_value(&result).unwrap();
+        assert_eq!(value["stopped"], "error");
+        assert_eq!(value["events"], 2);
+        assert_eq!(value["total_delta_y"], 360.0);
+        assert_eq!(value["stop_error"]["code"], "cdp_failed");
+        assert_eq!(
+            value["stop_error"]["message"],
+            "Input.dispatchMouseEvent failed"
+        );
     }
 }

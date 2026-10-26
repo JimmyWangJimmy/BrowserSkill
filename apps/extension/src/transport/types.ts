@@ -591,6 +591,8 @@ export interface WheelResult {
   total_delta_y: number;
   /** Why the operation stopped before its last event: timeout, cancelled or error. */
   stopped?: string;
+  /** The underlying failure when `stopped` is `error`, kept separate from progress. */
+  stop_error?: { code: string; message: string };
   dialogs?: JavaScriptDialogInfo[];
 }
 

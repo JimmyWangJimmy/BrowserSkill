@@ -837,6 +837,7 @@ async fn wheel_round_trips_native_deltas_and_point() {
                 total_delta_x: 10.0,
                 total_delta_y: 600.0,
                 stopped: None,
+                stop_error: None,
                 dialogs: vec![],
             })
             .unwrap(),

@@ -166,6 +166,7 @@ export async function handleWheel(
       let totalX = 0;
       let totalY = 0;
       let stopped: string | undefined;
+      let stopError: { code: string; message: string } | undefined;
       for (let index = 0; index < schedule.length; index += 1) {
         if (index > 0 && intervalMs > 0) {
           const elapsed = await waitWithinInterval(intervalMs, deadline, deps.signal);
@@ -194,6 +195,12 @@ export async function handleWheel(
             : Date.now() >= deadline
               ? "timeout"
               : "error";
+          // Keep the cause beside the progress so a caller never mistakes this
+          // event's failure for the outcome of the whole operation.
+          if (stopped === "error") {
+            const detail = isRpcError(error) ? error : cdpError(error);
+            stopError = { code: detail.code, message: detail.message };
+          }
           break;
         }
         dispatched += 1;
@@ -220,6 +227,7 @@ export async function handleWheel(
         total_delta_x: totalX,
         total_delta_y: totalY,
         ...(stopped === undefined ? {} : { stopped }),
+        ...(stopError === undefined ? {} : { stop_error: stopError }),
       });
     });
   } catch (error) {
